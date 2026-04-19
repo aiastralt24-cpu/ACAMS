@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/auth";
 
 type UploadPageProps = {
   searchParams: Promise<{
+    brand?: string;
     error?: string;
     message?: string;
   }>;
@@ -16,6 +17,11 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
   const user = await requireUser();
   const availableBrands = await getManageableBrandsForUser(user);
   const params = await searchParams;
+  const requestedBrand = params.brand ?? "";
+  const initialBrandId =
+    requestedBrand === "shared"
+      ? "shared"
+      : availableBrands.find((brand) => brand.slug === requestedBrand || brand.id === requestedBrand)?.id;
 
   return (
     <main className="page">
@@ -37,6 +43,7 @@ export default async function UploadPage({ searchParams }: UploadPageProps) {
         action={createAssetAction}
         availableBrands={availableBrands}
         canUploadShared={user.role === "super_admin"}
+        initialBrandId={initialBrandId}
       />
     </main>
   );

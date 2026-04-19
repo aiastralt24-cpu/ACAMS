@@ -7,6 +7,7 @@ import type { BrandRecord } from "@/lib/types";
 type UploadRequestBuilderProps = {
   availableBrands: BrandRecord[];
   canUploadShared: boolean;
+  initialBrandId?: string;
   action: (formData: FormData) => Promise<void>;
 };
 
@@ -46,10 +47,16 @@ function GuidedChip({
 export function UploadRequestBuilder({
   availableBrands,
   canUploadShared,
+  initialBrandId,
   action,
 }: UploadRequestBuilderProps) {
-  const firstBrandId = availableBrands[0]?.id ?? "";
+  const initialBrandIsAllowed =
+    Boolean(initialBrandId) &&
+    (availableBrands.some((brand) => brand.id === initialBrandId) ||
+      (canUploadShared && initialBrandId === "shared"));
+  const firstBrandId = initialBrandIsAllowed ? initialBrandId ?? "" : availableBrands[0]?.id ?? "";
   const [selectedBrandId, setSelectedBrandId] = useState(firstBrandId);
+  const [appliedInitialBrandId, setAppliedInitialBrandId] = useState(firstBrandId);
   const [selectedPlatform, setSelectedPlatform] = useState("Instagram");
   const [selectedAssetType, setSelectedAssetType] = useState("Social Post");
   const [selectedProduct, setSelectedProduct] = useState("");
@@ -62,6 +69,14 @@ export function UploadRequestBuilder({
   }, [availableBrands]);
 
   useEffect(() => {
+    if (firstBrandId && appliedInitialBrandId !== firstBrandId) {
+      setSelectedBrandId(firstBrandId);
+      setAppliedInitialBrandId(firstBrandId);
+      setSelectedProduct("");
+      setProductQuery("");
+      return;
+    }
+
     if (!selectedBrandId && firstBrandId) {
       setSelectedBrandId(firstBrandId);
       return;
@@ -76,7 +91,7 @@ export function UploadRequestBuilder({
       setSelectedProduct("");
       setProductQuery("");
     }
-  }, [availableBrands, firstBrandId, selectedBrandId]);
+  }, [appliedInitialBrandId, availableBrands, firstBrandId, selectedBrandId]);
 
   const currentBrand = useMemo(() => {
     return brandCatalog.find((brand) => brand.id === selectedBrandId);

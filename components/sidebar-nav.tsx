@@ -113,11 +113,21 @@ export function SidebarNav({
   }, [brands, pathname, user?.primaryBrandId]);
 
   const isActive = (href: string) => {
-    if (href === "/") {
+    const baseHref = href.split("?")[0] ?? href;
+
+    if (baseHref === "/") {
       return pathname === "/";
     }
 
-    return pathname === href || pathname.startsWith(`${href}/`);
+    return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
+  };
+
+  const getNavHref = (item: NavItem) => {
+    if (item.href !== "/uploads/new" || !currentWorkspace) {
+      return item.href;
+    }
+
+    return `/uploads/new?brand=${encodeURIComponent(currentWorkspace.slug)}`;
   };
 
   return (
@@ -144,8 +154,8 @@ export function SidebarNav({
       <nav className="nav-group" aria-label="Primary">
         {navItems.map((item) => (
           <Link
-            className={`nav-link ${isActive(item.href) ? "nav-link-active" : ""}`}
-            href={item.href}
+            className={`nav-link ${isActive(getNavHref(item)) ? "nav-link-active" : ""}`}
+            href={getNavHref(item)}
             key={item.href}
             title={item.label}
           >
