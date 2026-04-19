@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { AppUser, BrandRecord } from "@/lib/types";
 
@@ -101,16 +101,19 @@ export function SidebarNav({
   logoutAction,
 }: SidebarNavProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const roleLabel = user ? user.role.replaceAll("_", " ") : "Sign in required";
+  const uploadBrandSlug = pathname === "/uploads/new" ? searchParams.get("brand") : null;
 
   const currentWorkspace = useMemo(() => {
     return (
+      brands.find((brand) => brand.slug === uploadBrandSlug) ??
       brands.find((brand) => pathname.startsWith(`/brands/${brand.slug}`)) ??
       brands.find((brand) => brand.id === user?.primaryBrandId) ??
       brands[0]
     );
-  }, [brands, pathname, user?.primaryBrandId]);
+  }, [brands, pathname, uploadBrandSlug, user?.primaryBrandId]);
 
   const isActive = (href: string) => {
     const baseHref = href.split("?")[0] ?? href;
@@ -123,7 +126,15 @@ export function SidebarNav({
   };
 
   const getNavHref = (item: NavItem) => {
-    if (item.href !== "/uploads/new" || !currentWorkspace) {
+    if (item.href !== "/uploads/new") {
+      return item.href;
+    }
+
+    if (pathname === "/shared" || uploadBrandSlug === "shared") {
+      return "/uploads/new?brand=shared";
+    }
+
+    if (!currentWorkspace) {
       return item.href;
     }
 
@@ -196,7 +207,9 @@ export function SidebarNav({
         {currentWorkspace ? (
           <Link
             className={`workspace-current ${
-              pathname.startsWith(`/brands/${currentWorkspace.slug}`) ? "workspace-current-active" : ""
+              pathname.startsWith(`/brands/${currentWorkspace.slug}`) || uploadBrandSlug === currentWorkspace.slug
+                ? "workspace-current-active"
+                : ""
             }`}
             href={`/brands/${currentWorkspace.slug}`}
             title={currentWorkspace.name}
@@ -216,7 +229,9 @@ export function SidebarNav({
             .map((brand) => (
               <Link
                 className={`workspace-link-nav ${
-                  pathname.startsWith(`/brands/${brand.slug}`) ? "workspace-link-nav-active" : ""
+                  pathname.startsWith(`/brands/${brand.slug}`) || uploadBrandSlug === brand.slug
+                    ? "workspace-link-nav-active"
+                    : ""
                 }`}
                 href={`/brands/${brand.slug}`}
                 key={brand.id}

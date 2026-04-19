@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { assetTypeOptions, brandCatalog, platformOptions, versionOptions } from "@/lib/brand-catalog";
 import type { BrandRecord } from "@/lib/types";
 
@@ -50,6 +51,7 @@ export function UploadRequestBuilder({
   initialBrandId,
   action,
 }: UploadRequestBuilderProps) {
+  const router = useRouter();
   const initialBrandIsAllowed =
     Boolean(initialBrandId) &&
     (availableBrands.some((brand) => brand.id === initialBrandId) ||
@@ -96,6 +98,10 @@ export function UploadRequestBuilder({
   const currentBrand = useMemo(() => {
     return brandCatalog.find((brand) => brand.id === selectedBrandId);
   }, [selectedBrandId]);
+  const selectedBrandSlug =
+    selectedBrandId === "shared"
+      ? "shared"
+      : availableBrands.find((brand) => brand.id === selectedBrandId)?.slug;
 
   const currentRoute = [currentBrand?.name, selectedProduct || null, selectedPlatform, selectedAssetType].filter(
     Boolean,
@@ -120,11 +126,24 @@ export function UploadRequestBuilder({
     ...(canUploadShared ? [{ label: "Shared Library", value: "shared", tone: "shared" }] : []),
   ];
   const hasSingleBrandOption = brandOptions.length === 1;
+  const selectBrand = (value: string) => {
+    setSelectedBrandId(value);
+    setSelectedProduct("");
+    setProductQuery("");
+
+    const nextBrandSlug =
+      value === "shared" ? "shared" : availableBrands.find((brand) => brand.id === value)?.slug;
+
+    if (nextBrandSlug) {
+      router.replace(`/uploads/new?brand=${encodeURIComponent(nextBrandSlug)}`, { scroll: false });
+    }
+  };
 
   return (
     <form action={action} className="request-builder">
       <input name="brandId" type="hidden" value={selectedBrandId} />
       <input name="brandLabel" type="hidden" value={selectedBrandLabel} />
+      <input name="brandSlug" type="hidden" value={selectedBrandSlug ?? ""} />
       <input name="platform" type="hidden" value={selectedPlatform} />
       <input name="category" type="hidden" value={selectedAssetType} />
       <input name="productName" type="hidden" value={selectedProduct} />
@@ -178,11 +197,7 @@ export function UploadRequestBuilder({
                       checked={selectedBrandId === brand.value}
                       group="brandChoice"
                       key={brand.value}
-                      onChange={(value) => {
-                        setSelectedBrandId(value);
-                        setSelectedProduct("");
-                        setProductQuery("");
-                      }}
+                      onChange={selectBrand}
                       option={brand}
                       tone={brand.tone}
                     />
