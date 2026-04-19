@@ -104,6 +104,7 @@ export function UploadRequestBuilder({
     })),
     ...(canUploadShared ? [{ label: "Shared Library", value: "shared", tone: "shared" }] : []),
   ];
+  const hasSingleBrandOption = brandOptions.length === 1;
 
   return (
     <form action={action} className="request-builder">
@@ -150,22 +151,29 @@ export function UploadRequestBuilder({
               <div className="selector-head">
                 <h3>Brand</h3>
               </div>
-              <div className="chip-grid">
-                {brandOptions.map((brand) => (
-                  <GuidedChip
-                    checked={selectedBrandId === brand.value}
-                    group="brandChoice"
-                    key={brand.value}
-                    onChange={(value) => {
-                      setSelectedBrandId(value);
-                      setSelectedProduct("");
-                      setProductQuery("");
-                    }}
-                    option={brand}
-                    tone={brand.tone}
-                  />
-                ))}
-              </div>
+              {hasSingleBrandOption ? (
+                <div className="selected-destination">
+                  <span>Destination</span>
+                  <strong>{brandOptions[0]?.label}</strong>
+                </div>
+              ) : (
+                <div className="chip-grid">
+                  {brandOptions.map((brand) => (
+                    <GuidedChip
+                      checked={selectedBrandId === brand.value}
+                      group="brandChoice"
+                      key={brand.value}
+                      onChange={(value) => {
+                        setSelectedBrandId(value);
+                        setSelectedProduct("");
+                        setProductQuery("");
+                      }}
+                      option={brand}
+                      tone={brand.tone}
+                    />
+                  ))}
+                </div>
+              )}
             </section>
 
             <section className="request-card">

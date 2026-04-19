@@ -244,3 +244,62 @@ export async function reviewAssetAction(formData: FormData) {
 
   redirect(`/approvals?message=Asset+${action === "approved" ? "approved" : "rejected"}+successfully`);
 }
+
+export async function deleteAssetAction(formData: FormData) {
+  const user = await requireUser();
+
+  if (user.role !== "super_admin") {
+    redirect("/?error=Only+Super+Admin+can+delete+assets.");
+  }
+
+  if (getAuthMode() === "demo") {
+    redirect("/?message=Delete+will+be+enabled+for+live+accounts.");
+  }
+
+  const assetId = String(formData.get("assetId") ?? "");
+
+  if (!assetId) {
+    redirect("/?error=Invalid+asset+delete+request.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: asset } = await supabase
+    .from("assets")
+    .select("id, title, brand_id, storage_path, thumbnail_path, brands(name)")
+    .eq("id", assetId)
+    .single();
+
+  if (!asset) {
+    redirect("/?error=Asset+could+not+be+found.");
+  }
+
+  const bucketName = deriveAssetBucketName(asset.brand_id);
+  const storagePaths = [asset.storage_path, asset.thumbnail_path].filter(Boolean) as string[];
+
+  if (storagePaths.length) {
+    await supabase.storage.from(bucketName).remove(storagePaths);
+  }
+
+  await supabase.from("audit_log").insert({
+    user_id: user.id,
+    action: "delete",
+    entity_type: "asset",
+    entity_id: asset.id,
+    metadata: {
+      summary: `${user.fullName} deleted ${asset.title}.`,
+      brandName:
+        asset.brand_id === null
+          ? "Shared Library"
+          : extractJoinedBrandName(asset.brands) ?? "Brand workspace",
+      entityTitle: asset.title,
+    },
+  });
+
+  const { error: deleteError } = await supabase.from("assets").delete().eq("id", assetId);
+
+  if (deleteError) {
+    redirect(`/assets/${assetId}?error=${encodeURIComponent(deleteError.message)}`);
+  }
+
+  redirect("/?message=Asset+deleted+successfully");
+}

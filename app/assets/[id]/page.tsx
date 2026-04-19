@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { deleteAssetAction } from "@/app/actions/asset-actions";
 import { DashboardHeader } from "@/components/dashboard-header";
+import { DeleteAssetForm } from "@/components/delete-asset-form";
 import { getAssetDetail } from "@/lib/acams";
 import { requireUser } from "@/lib/auth";
 
@@ -35,6 +37,9 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
             <a className="button button-primary" href={`/api/assets/${asset.id}/download`}>
               Download
             </a>
+            {user.role === "super_admin" ? (
+              <DeleteAssetForm action={deleteAssetAction} assetId={asset.id} assetTitle={asset.title} />
+            ) : null}
           </>
         }
       />

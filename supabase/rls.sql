@@ -146,6 +146,11 @@ with check (
   or uploaded_by = auth.uid()
 );
 
+create policy "assets_delete_by_super_admin"
+on assets
+for delete
+using (public.current_user_role() = 'super_admin');
+
 create policy "asset_tags_follow_asset_visibility"
 on asset_tags
 for select
