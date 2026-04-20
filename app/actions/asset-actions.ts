@@ -55,6 +55,7 @@ export async function createAssetAction(formData: FormData) {
   const bucketName = deriveAssetBucketName(brandId);
   const safeName = file.name.replace(/\s+/g, "-").toLowerCase();
   const storagePath = `${brandId ?? "shared"}/${Date.now()}-${safeName}`;
+  // Super Admin and Brand Admin uploads publish immediately in v1; agency/member uploads still go through review.
   const initialStatus =
     user.role === "super_admin" || user.role === "brand_admin" ? "approved" : "pending_approval";
 
@@ -63,9 +64,7 @@ export async function createAssetAction(formData: FormData) {
     .select("id, parent_asset_id, status, version_label")
     .eq("title", title)
     .eq("category", category)
-    .eq("uploaded_by", user.id)
-    .order("created_at", { ascending: false })
-    .limit(5);
+    .order("created_at", { ascending: false });
 
   if (brandId === null) {
     familyQuery = familyQuery.is("brand_id", null);
@@ -158,6 +157,7 @@ export async function createAssetAction(formData: FormData) {
       summary: `${user.fullName} uploaded ${title}.`,
       brandName: brandId === null ? "Shared Library" : brandLabel || rawBrandId,
       entityTitle: title,
+      status: initialStatus,
     },
   });
 
@@ -245,6 +245,65 @@ export async function reviewAssetAction(formData: FormData) {
   redirect(`/approvals?message=Asset+${action === "approved" ? "approved" : "rejected"}+successfully`);
 }
 
+export async function archiveAssetAction(formData: FormData) {
+  const user = await requireUser();
+
+  if (user.role !== "super_admin") {
+    redirect("/?error=Only+Super+Admin+can+archive+assets.");
+  }
+
+  if (getAuthMode() === "demo") {
+    redirect("/?message=Archive+will+be+enabled+for+live+accounts.");
+  }
+
+  const assetId = String(formData.get("assetId") ?? "");
+
+  if (!assetId) {
+    redirect("/?error=Invalid+asset+archive+request.");
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data: asset } = await supabase
+    .from("assets")
+    .select("id, title, brand_id, brands(name)")
+    .eq("id", assetId)
+    .single();
+
+  if (!asset) {
+    redirect("/?error=Asset+could+not+be+found.");
+  }
+
+  const { error: archiveError } = await supabase
+    .from("assets")
+    .update({
+      status: "archived",
+      latest_approved_version: false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", assetId);
+
+  if (archiveError) {
+    redirect(`/assets/${assetId}?error=${encodeURIComponent(archiveError.message)}`);
+  }
+
+  await supabase.from("audit_log").insert({
+    user_id: user.id,
+    action: "archive",
+    entity_type: "asset",
+    entity_id: asset.id,
+    metadata: {
+      summary: `${user.fullName} archived ${asset.title}.`,
+      brandName:
+        asset.brand_id === null
+          ? "Shared Library"
+          : extractJoinedBrandName(asset.brands) ?? "Brand workspace",
+      entityTitle: asset.title,
+    },
+  });
+
+  redirect(`/assets/${assetId}?message=Asset+archived+successfully`);
+}
+
 export async function deleteAssetAction(formData: FormData) {
   const user = await requireUser();
 
@@ -276,6 +335,12 @@ export async function deleteAssetAction(formData: FormData) {
   const bucketName = deriveAssetBucketName(asset.brand_id);
   const storagePaths = [asset.storage_path, asset.thumbnail_path].filter(Boolean) as string[];
 
+  const { error: deleteError } = await supabase.from("assets").delete().eq("id", assetId);
+
+  if (deleteError) {
+    redirect(`/assets/${assetId}?error=${encodeURIComponent(deleteError.message)}`);
+  }
+
   if (storagePaths.length) {
     await supabase.storage.from(bucketName).remove(storagePaths);
   }
@@ -294,12 +359,6 @@ export async function deleteAssetAction(formData: FormData) {
       entityTitle: asset.title,
     },
   });
-
-  const { error: deleteError } = await supabase.from("assets").delete().eq("id", assetId);
-
-  if (deleteError) {
-    redirect(`/assets/${assetId}?error=${encodeURIComponent(deleteError.message)}`);
-  }
 
   redirect("/?message=Asset+deleted+successfully");
 }

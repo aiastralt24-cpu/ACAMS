@@ -121,8 +121,13 @@ using (
   public.brand_visible_to_user(brand_id)
   and (
     public.brand_manageable_by_user(brand_id)
-    or status = 'approved'
-    or uploaded_by = auth.uid()
+    or (
+      status <> 'archived'
+      and (
+        status = 'approved'
+        or uploaded_by = auth.uid()
+      )
+    )
   )
 );
 
@@ -138,12 +143,12 @@ create policy "assets_update_by_admin_or_owner"
 on assets
 for update
 using (
-  public.brand_manageable_by_user(brand_id)
-  or uploaded_by = auth.uid()
+  public.current_user_role() in ('super_admin', 'brand_admin')
+  and public.brand_manageable_by_user(brand_id)
 )
 with check (
-  public.brand_manageable_by_user(brand_id)
-  or uploaded_by = auth.uid()
+  public.current_user_role() in ('super_admin', 'brand_admin')
+  and public.brand_manageable_by_user(brand_id)
 );
 
 create policy "assets_delete_by_super_admin"

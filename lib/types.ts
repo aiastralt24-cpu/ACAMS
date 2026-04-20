@@ -70,7 +70,7 @@ export type ApprovalQueueItem = {
 
 export type AuditEvent = {
   id: string;
-  eventType: "upload" | "approval" | "download" | "grant";
+  eventType: "upload" | "approval" | "download" | "grant" | "archive" | "delete";
   title: string;
   summary: string;
   actorName?: string;
@@ -118,7 +118,7 @@ export type DashboardData = {
 
 export type AssetHistoryEntry = {
   id: string;
-  type: "version" | "approval" | "download";
+  type: "version" | "approval" | "download" | "archive" | "delete";
   title: string;
   summary: string;
   createdAt: string;

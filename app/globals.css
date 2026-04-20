@@ -477,6 +477,12 @@ a {
   flex-wrap: wrap;
 }
 
+.asset-admin-actions {
+  display: inline-flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .button {
   display: inline-flex;
   align-items: center;

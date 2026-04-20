@@ -165,7 +165,9 @@ export async function getManageableBrandsForUser(user: AppUser): Promise<BrandRe
 
 export const getVisibleAssetsForUser = cache(async (user: AppUser): Promise<AssetRecord[]> => {
   if (getAuthMode() === "demo") {
-    return demoAssets.filter((asset) => userCanAccessBrand(user, asset.brandId));
+    return demoAssets.filter(
+      (asset) => userCanAccessBrand(user, asset.brandId) && (asset.status !== "archived" || userCanManageBrand(user, asset.brandId)),
+    );
   }
 
   const supabase = await createSupabaseServerClient();
@@ -186,7 +188,11 @@ export const getVisibleAssetsForUser = cache(async (user: AppUser): Promise<Asse
     };
   });
 
-  return attachSignedPreviews(supabase, records);
+  const scopedRecords = records.filter(
+    (asset) => asset.status !== "archived" || userCanManageBrand(user, asset.brandId),
+  );
+
+  return attachSignedPreviews(supabase, scopedRecords);
 });
 
 export async function getVisibleAssetsForBrand(user: AppUser, brandId: string) {
@@ -299,6 +305,14 @@ function inferAuditType(action: string): AuditEvent["eventType"] {
     return "grant";
   }
 
+  if (action === "archive") {
+    return "archive";
+  }
+
+  if (action === "delete") {
+    return "delete";
+  }
+
   return "upload";
 }
 
@@ -308,6 +322,8 @@ function buildActivityReport(events: AuditEvent[]): ActivityReport {
     approval: 0,
     download: 0,
     grant: 0,
+    archive: 0,
+    delete: 0,
   };
   const brandMap = new Map<string, number>();
 
@@ -334,6 +350,8 @@ function buildActivityReport(events: AuditEvent[]): ActivityReport {
       { label: "Approvals", count: counts.approval },
       { label: "Downloads", count: counts.download },
       { label: "Grants", count: counts.grant },
+      { label: "Archives", count: counts.archive },
+      { label: "Deletes", count: counts.delete },
     ],
   };
 }
@@ -458,6 +476,11 @@ export async function getAssetDetail(user: AppUser, assetId: string): Promise<As
       thumbnailPath: source.thumbnail_path,
     },
   ]);
+
+  if (assetRecord.status === "archived" && !userCanManageBrand(user, assetRecord.brandId)) {
+    return null;
+  }
+
   const history = await getAssetHistory(assetId);
   return {
     asset: assetRecord,
@@ -471,9 +494,16 @@ export async function getAssetHistory(assetId: string): Promise<AssetHistoryEntr
   }
 
   const supabase = await createSupabaseServerClient();
-  const [approvalsResult, downloadsResult] = await Promise.all([
+  const [approvalsResult, downloadsResult, auditResult] = await Promise.all([
     supabase.from("approvals").select("id, action, comment, created_at").eq("asset_id", assetId).order("created_at", { ascending: false }),
     supabase.from("downloads").select("id, variant, created_at").eq("asset_id", assetId).order("created_at", { ascending: false }),
+    supabase
+      .from("audit_log")
+      .select("id, action, metadata, created_at")
+      .eq("entity_type", "asset")
+      .eq("entity_id", assetId)
+      .in("action", ["archive", "delete"])
+      .order("created_at", { ascending: false }),
   ]);
 
   const approvalHistory: AssetHistoryEntry[] = (approvalsResult.data ?? []).map((entry) => ({
@@ -492,7 +522,15 @@ export async function getAssetHistory(assetId: string): Promise<AssetHistoryEntr
     createdAt: entry.created_at,
   }));
 
-  return [...approvalHistory, ...downloadHistory].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const auditHistory: AssetHistoryEntry[] = (auditResult.data ?? []).map((entry) => ({
+    id: entry.id,
+    type: entry.action === "archive" ? "archive" : "delete",
+    title: entry.action === "archive" ? "Archived" : "Deleted",
+    summary: typeof entry.metadata?.summary === "string" ? entry.metadata.summary : "Admin action recorded.",
+    createdAt: entry.created_at,
+  }));
+
+  return [...approvalHistory, ...downloadHistory, ...auditHistory].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 export async function getAppContext() {

@@ -28,10 +28,22 @@ export async function GET(_request: Request, { params }: DownloadRouteProps) {
     return NextResponse.redirect(new URL(`/assets/${id}?message=Download+will+be+enabled+for+live+accounts.`, "http://localhost:3000"));
   }
 
+  const canDownload =
+    detail.asset.status === "approved" ||
+    user.role === "super_admin" ||
+    detail.asset.uploadedById === user.id;
+
+  if (!canDownload) {
+    return NextResponse.json(
+      { error: "This asset is not approved for download yet." },
+      { status: 403 },
+    );
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: assetRow } = await supabase
     .from("assets")
-    .select("storage_path, brand_id")
+    .select("storage_path, brand_id, title, status, uploaded_by, brands(name)")
     .eq("id", id)
     .single();
 
@@ -46,6 +58,8 @@ export async function GET(_request: Request, { params }: DownloadRouteProps) {
     return NextResponse.json({ error: "Unable to generate download link" }, { status: 500 });
   }
 
+  const joinedBrand = Array.isArray(assetRow.brands) ? assetRow.brands[0] : assetRow.brands;
+
   await supabase.from("downloads").insert({
     asset_id: id,
     downloaded_by: user.id,
@@ -58,7 +72,10 @@ export async function GET(_request: Request, { params }: DownloadRouteProps) {
     entity_type: "asset",
     entity_id: id,
     metadata: {
-      summary: `${user.fullName} downloaded asset ${id}.`,
+      summary: `${user.fullName} downloaded ${assetRow.title}.`,
+      brandName: assetRow.brand_id === null ? "Shared Library" : joinedBrand?.name ?? "Brand workspace",
+      entityTitle: assetRow.title,
+      status: assetRow.status,
     },
   });
 

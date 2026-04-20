@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { deleteAssetAction } from "@/app/actions/asset-actions";
+import { archiveAssetAction, deleteAssetAction } from "@/app/actions/asset-actions";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { DeleteAssetForm } from "@/components/delete-asset-form";
 import { getAssetDetail } from "@/lib/acams";
@@ -38,7 +38,12 @@ export default async function AssetDetailPage({ params }: AssetDetailPageProps) 
               Download
             </a>
             {user.role === "super_admin" ? (
-              <DeleteAssetForm action={deleteAssetAction} assetId={asset.id} assetTitle={asset.title} />
+              <DeleteAssetForm
+                action={deleteAssetAction}
+                archiveAction={archiveAssetAction}
+                assetId={asset.id}
+                assetTitle={asset.title}
+              />
             ) : null}
           </>
         }
